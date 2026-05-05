@@ -1,77 +1,139 @@
 # AI Customer Insight Dashboard
 
-> AI 驱动的客户反馈洞察平台 — 展示全栈开发 + AI 接口整合能力
+> AI 驱动的客户反馈洞察平台 — 全栈开发 + AI 接口整合
 
 ## 功能
 
 - 🔐 JWT 用户认证（注册/登录）
-- 📊 CSV 数据导入（客户反馈）
+- 📊 多数据源接入（CSV / 外部 API / Webhook）
 - 🤖 AI 智能分析（情感分析 + 关键词提取 + 自动分类）
 - 📈 可视化仪表盘（趋势图 + 主题图表 + 数据卡片）
+- 🐳 完整容器化（前后端 Docker + docker-compose 一键启动）
+- 🧪 自动化测试（pytest + Jest + Playwright E2E）
+- 🔄 数据库迁移（Alembic）
 
 ## 技术栈
 
 | 层级 | 技术 |
 |------|------|
 | 前端 | Next.js 14 + Tailwind CSS + Recharts |
-| 后端 | FastAPI + SQLAlchemy |
-| 数据库 | PostgreSQL (开发环境可用 SQLite) |
-| AI | OpenAI 兼容 API |
+| 后端 | FastAPI + SQLAlchemy + Alembic |
+| 数据库 | PostgreSQL（开发可用 SQLite） |
+| AI | OpenAI 兼容 API / Ollama 本地模型 |
+| 测试 | pytest + Jest + Playwright |
+| 部署 | Docker + GitHub Actions CI/CD |
 
 ## 快速开始
 
-### 后端
+### 方式一：Docker Compose（推荐）
 
 ```bash
+docker-compose up -d
+```
+
+访问 http://localhost:3000
+
+### 方式二：本地开发
+
+**后端：**
+```bash
 cd backend
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env  # 编辑 .env 填入 API Key
+cp .env.example .env  # 编辑配置
+alembic upgrade head   # 初始化数据库
 uvicorn main:app --reload --port 8000
 ```
 
-API 文档: http://localhost:8000/docs
-
-### 前端
-
+**前端：**
 ```bash
 cd frontend
+cp .env.example .env.local
 npm install
 npm run dev
 ```
 
-访问: http://localhost:3000
+### 方式三：本地模型（离线环境）
 
-### 使用流程
+```bash
+# 1. 安装 Ollama
+curl -fsSL https://ollama.com/install.sh | sh
 
-1. 注册账号并登录
-2. 上传 CSV 文件（列名: `date`, `source`, `content`）
-3. 点击 "运行 AI 分析" 按钮
-4. 查看仪表盘可视化结果
+# 2. 拉取模型
+ollama pull qwen2.5:7b
 
-## CSV 格式示例
+# 3. 在 .env 中启用本地模型
+USE_LOCAL_MODEL=true
+LOCAL_MODEL_BACKEND=ollama
 
-```csv
-date,source,content
-2024-01-15,淘宝,物流速度很快，包装也很好，非常满意！
-2024-01-16,京东,产品质量太差了，用了两天就坏了
-2024-01-17,客服,服务态度一般，问题没有完全解决
+# 4. 启动后端
+uvicorn main:app --reload
 ```
+
+## 数据库迁移
+
+```bash
+# 生成迁移脚本
+alembic revision --autogenerate -m "描述变更"
+
+# 执行迁移
+alembic upgrade head
+
+# 回滚
+alembic downgrade -1
+```
+
+## 测试
+
+```bash
+# 后端测试
+cd backend && python -m pytest tests/ -v
+
+# 前端单元测试
+cd frontend && npm test
+
+# E2E 测试
+cd frontend && npx playwright install && npm run test:e2e
+```
+
+## 多数据源接入
+
+| 数据源 | 配置 | 说明 |
+|--------|------|------|
+| CSV 上传 | 页面拖拽上传 | 最基础的数据导入方式 |
+| 外部 API | POST /api/sources/api/sync | 对接 Zendesk、微信等 |
+| Webhook | POST /api/sources/webhook/{platform} | 实时接收推送 |
+| 本地模型 | .env 配置 USE_LOCAL_MODEL=true | 离线环境 AI 分析 |
 
 ## 项目结构
 
 ```
 ai-customer-insight/
-├── backend/           # FastAPI 后端
-│   ├── main.py        # 入口
-│   ├── models.py      # 数据库模型
-│   ├── routers/       # API 路由
-│   └── services/      # 业务逻辑
-├── frontend/          # Next.js 前端
+├── .github/workflows/ci.yml    # CI/CD
+├── docker-compose.yml          # 一键部署
+├── backend/
+│   ├── Dockerfile
+│   ├── alembic/                # 数据库迁移
+│   ├── models.py               # ORM 模型
+│   ├── routers/                # API 路由
+│   │   ├── auth.py             # 认证
+│   │   ├── feedback.py         # 反馈 CRUD
+│   │   ├── analytics.py        # AI 分析 + 仪表盘
+│   │   └── data_sources.py     # 多数据源管理
+│   ├── services/
+│   │   ├── ai_analyzer.py      # AI 分析（云端+本地）
+│   │   ├── csv_parser.py       # CSV 解析
+│   │   ├── local_model.py      # 本地模型推理
+│   │   └── data_sources/       # 数据源抽象层
+│   └── tests/                  # pytest 测试
+├── frontend/
+│   ├── Dockerfile
+│   ├── .env.example
+│   ├── e2e/                    # Playwright E2E 测试
 │   └── src/
-│       ├── app/       # 页面
-│       ├── components/# 组件
-│       └── lib/       # 工具
+│       ├── app/                # Next.js 页面
+│       ├── components/         # UI 组件
+│       ├── lib/                # API 客户端
+│       └── __tests__/          # Jest 单元测试
 └── README.md
 ```
