@@ -1,13 +1,27 @@
-"""数据库连接"""
-from sqlalchemy import create_engine
+"""数据库连接（含连接池配置）"""
+import logging
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 from config import get_settings
 
+logger = logging.getLogger(__name__)
 settings = get_settings()
 
-# SQLite 需要 check_same_thread=False
-connect_args = {"check_same_thread": False} if "sqlite" in settings.DATABASE_URL else {}
-engine = create_engine(settings.DATABASE_URL, connect_args=connect_args)
+# SQLite 需要 check_same_thread=False，其他数据库启用连接池
+is_sqlite = "sqlite" in settings.DATABASE_URL
+connect_args = {"check_same_thread": False} if is_sqlite else {}
+
+if is_sqlite:
+    engine = create_engine(settings.DATABASE_URL, connect_args=connect_args)
+else:
+    engine = create_engine(
+        settings.DATABASE_URL,
+        connect_args=connect_args,
+        pool_size=10,
+        max_overflow=20,
+        pool_pre_ping=True,  # 连接健康检查
+    )
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
@@ -22,3 +36,15 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+def check_db_connection() -> bool:
+    """启动时数据库连接健康检查"""
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        logger.info("数据库连接正常")
+        return True
+    except Exception as e:
+        logger.error(f"数据库连接失败: {e}")
+        return False

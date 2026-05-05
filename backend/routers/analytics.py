@@ -1,26 +1,23 @@
-"""AI 分析和仪表盘路由 - 增强版"""
-import uuid
+"""AI 分析和仪表盘路由 - 生产级增强版"""
 import logging
 from collections import Counter, defaultdict
-from fastapi import APIRouter, Depends, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from database import get_db
+from database import get_db, engine
 from models import User, Feedback, Analytics
 from schemas import DashboardStats, SentimentDist, TopTopic, DailyTrend, AnalyticsResponse
 from auth import get_current_user
 from services.ai_analyzer import analyze_feedback
+from services.profile_updater import update_user_profile
+from services.task_queue import task_queue
 
 router = APIRouter(prefix="/api", tags=["AI 分析"])
 logger = logging.getLogger(__name__)
 
-# 异步任务状态存储
-_tasks: dict[str, dict] = {}
 
-
-def _run_analysis_task(task_id: str, user_id: int, db_url: str):
-    """后台分析任务"""
-    from database import engine
+def _run_analysis_task(task_id: str, user_id: int):
+    """后台分析任务（在线程池中执行）"""
     from sqlalchemy.orm import sessionmaker
     Session = sessionmaker(bind=engine)
     db = Session()
@@ -30,7 +27,7 @@ def _run_analysis_task(task_id: str, user_id: int, db_url: str):
             Feedback.user_id == user_id, ~Feedback.id.in_(analyzed_ids)
         ).all()
 
-        _tasks[task_id]["total"] = len(unanalyzed)
+        task_queue.update_task(task_id, total=len(unanalyzed))
         success = fail = 0
         failures = []
 
@@ -53,16 +50,13 @@ def _run_analysis_task(task_id: str, user_id: int, db_url: str):
                 fail += 1
                 failures.append({"id": fb.id, "error": str(e)})
 
-            _tasks[task_id]["processed"] = success + fail
-            _tasks[task_id]["success"] = success
-            _tasks[task_id]["fail"] = fail
+            task_queue.update_task(task_id, processed=success + fail, success=success, fail=fail)
 
         db.commit()
-        _tasks[task_id]["status"] = "done"
-        _tasks[task_id]["failures"] = failures
+        task_queue.update_task(task_id, status="done", failures=failures)
     except Exception as e:
-        _tasks[task_id]["status"] = "error"
-        _tasks[task_id]["error"] = str(e)
+        logger.exception(f"分析任务失败 task_id={task_id}")
+        task_queue.update_task(task_id, status="error", error="分析任务执行失败")
         db.rollback()
     finally:
         db.close()
@@ -70,7 +64,6 @@ def _run_analysis_task(task_id: str, user_id: int, db_url: str):
 
 @router.post("/analyze")
 def run_analysis(
-    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -101,36 +94,36 @@ def run_analysis(
             success += 1
 
     db.commit()
+
+    # 分析完成后更新用户画像
+    update_user_profile(current_user.id, db)
+
     return {"message": f"分析完成", "analyzed": success, "failed": fail, "failures": failures}
 
 
 @router.post("/analyze/async")
 def run_analysis_async(
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
 ):
     """异步分析 - 立即返回 task_id"""
-    from config import get_settings
-    task_id = str(uuid.uuid4())[:8]
-    _tasks[task_id] = {"status": "running", "total": 0, "processed": 0, "success": 0, "fail": 0}
-
-    from fastapi.concurrency import run_in_threadpool
-    import threading
-    thread = threading.Thread(
-        target=_run_analysis_task,
-        args=(task_id, current_user.id, get_settings().DATABASE_URL),
-        daemon=True,
-    )
-    thread.start()
+    task_id = task_queue.submit_task("analysis", _run_analysis_task, current_user.id)
     return {"task_id": task_id, "status": "running"}
 
 
 @router.get("/analyze/status/{task_id}")
-def get_analysis_status(task_id: str):
-    """查询异步分析进度"""
-    if task_id not in _tasks:
-        return {"error": "任务不存在"}, 404
-    return _tasks[task_id]
+def get_analysis_status(
+    task_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """查询异步分析进度（需要认证，不暴露内部错误）"""
+    task = task_queue.get_task_status(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    # 不向客户端暴露原始 error 字段
+    safe_task = {k: v for k, v in task.items() if k != "error"}
+    if task.get("error"):
+        safe_task["error"] = "任务执行失败"
+    return safe_task
 
 
 @router.get("/dashboard", response_model=DashboardStats)
@@ -183,9 +176,7 @@ def get_feedback_analytics(
 ):
     fb = db.query(Feedback).filter(Feedback.id == feedback_id, Feedback.user_id == current_user.id).first()
     if not fb:
-        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="反馈不存在")
     if not fb.analytics:
-        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="该反馈尚未分析")
     return fb.analytics

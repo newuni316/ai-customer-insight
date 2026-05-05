@@ -14,6 +14,8 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     feedbacks = relationship("Feedback", back_populates="user")
+    orders = relationship("Order", back_populates="user")
+    profile = relationship("UserProfile", back_populates="user", uselist=False)
 
 
 class Feedback(Base):
@@ -41,3 +43,51 @@ class Analytics(Base):
     analyzed_at = Column(DateTime, default=datetime.utcnow)
 
     feedback = relationship("Feedback", back_populates="analytics")
+
+
+class Order(Base):
+    """订单模型"""
+    __tablename__ = "orders"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    amount = Column(Float, nullable=False)
+    product = Column(String(255))
+    status = Column(String(50), default="completed")  # completed/refunded/cancelled
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User", back_populates="orders")
+
+
+class UserProfile(Base):
+    """用户画像模型 - RFM 分析结果"""
+    __tablename__ = "user_profiles"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False)
+    total_spent = Column(Float, default=0.0)
+    avg_order_value = Column(Float, default=0.0)
+    purchase_frequency = Column(Float, default=0.0)  # 每月订单数
+    last_active_days = Column(Integer, default=0)
+    rfm_score = Column(String(3), default="111")  # 如 "555"
+    user_level = Column(String(20), default="Low Value")  # High/Medium/Low Value
+    churn_risk = Column(String(10), default="low")  # low/medium/high
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User", back_populates="profile")
+
+
+class Decision(Base):
+    """AI 决策结果模型"""
+    __tablename__ = "decisions"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_type = Column(String(50))  # champion/loyal/potential/at_risk/lost
+    churn_risk = Column(String(10))  # low/medium/high
+    recommended_action = Column(Text)
+    reasoning = Column(Text)
+    rule_based = Column(Integer, default=0)  # 1 if AI failed and used rule fallback
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User", backref="decisions")

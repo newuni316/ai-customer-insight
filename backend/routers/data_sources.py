@@ -1,4 +1,6 @@
 """数据源管理路由"""
+import ipaddress
+from urllib.parse import urlparse
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -9,6 +11,28 @@ from services.data_sources.api_source import APISource
 from services.data_sources.webhook_source import parse_webhook_payload
 
 router = APIRouter(prefix="/api/sources", tags=["数据源"])
+
+# 内网 IP 前缀，防止 SSRF 攻击
+_PRIVATE_NETWORKS = [
+    ipaddress.ip_network("10.0.0.0/8"),
+    ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("192.168.0.0/16"),
+    ipaddress.ip_network("169.254.0.0/16"),
+    ipaddress.ip_network("127.0.0.0/8"),
+]
+
+
+def _is_internal_url(url: str) -> bool:
+    """检查 URL 是否指向内网地址（防 SSRF）"""
+    try:
+        hostname = urlparse(url).hostname
+        if not hostname:
+            return True
+        ip = ipaddress.ip_address(hostname)
+        return any(ip in net for net in _PRIVATE_NETWORKS)
+    except ValueError:
+        # hostname 不是 IP，可能是域名 — 允许通过
+        return False
 
 
 class APISourceConfig(BaseModel):
@@ -23,8 +47,13 @@ class WebhookPayload(BaseModel):
 
 
 @router.post("/api/test")
-async def test_api_source(config: APISourceConfig):
-    """测试外部 API 数据源连接"""
+async def test_api_source(
+    config: APISourceConfig,
+    current_user: User = Depends(get_current_user),
+):
+    """测试外部 API 数据源连接（需要认证，防 SSRF）"""
+    if _is_internal_url(config.base_url):
+        raise HTTPException(status_code=400, detail="不允许访问内网地址")
     source = APISource(config.base_url, config.auth_token)
     ok = await source.test_connection()
     if not ok:

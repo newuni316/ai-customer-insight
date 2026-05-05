@@ -1,112 +1,145 @@
-"use client"
-import { useEffect, useState, useCallback } from "react"
-import { useRouter } from "next/navigation"
-import api from "@/lib/api"
-import DataCard from "@/components/DataCard"
-import SentimentChart from "@/components/SentimentChart"
-import TopicChart from "@/components/TopicChart"
-import FileUpload from "@/components/FileUpload"
-import FeedbackTable from "@/components/FeedbackTable"
-import DashboardSkeleton from "@/components/DashboardSkeleton"
+"use client";
 
-interface Stats {
-  total_feedbacks: number
-  analyzed_count: number
-  sentiment_distribution: { positive: number; neutral: number; negative: number }
-  top_topics: { topic: string; count: number }[]
-  daily_trends: { date: string; positive: number; neutral: number; negative: number }[]
+import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import api from "@/lib/api";
+import DataCard from "@/components/DataCard";
+import RevenueChart from "@/components/RevenueChart";
+import UserSegmentationChart from "@/components/UserSegmentationChart";
+import ChurnChart from "@/components/ChurnChart";
+import RetentionChart from "@/components/RetentionChart";
+import AIInsightPanel from "@/components/AIInsightPanel";
+import FilterBar, { type FilterState } from "@/components/FilterBar";
+import OrdersTable from "@/components/OrdersTable";
+import DashboardSkeleton from "@/components/DashboardSkeleton";
+
+interface Overview {
+  total_users: number;
+  total_orders: number;
+  total_revenue: number;
+  avg_order_value: number;
+  active_users_30d: number;
 }
 
-export default function DashboardPage() {
-  const router = useRouter()
-  const [stats, setStats] = useState<Stats | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [analyzing, setAnalyzing] = useState(false)
+const DEFAULT_FILTERS: FilterState = {
+  startDate: "",
+  endDate: "",
+  userLevel: "",
+  minSpending: 0,
+  maxSpending: 10000,
+};
 
-  const fetchStats = useCallback(async () => {
+export default function DashboardPage() {
+  const router = useRouter();
+  const [overview, setOverview] = useState<Overview | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
+
+  const fetchOverview = useCallback(async () => {
     try {
-      setError(null)
-      const { data } = await api.get("/api/dashboard")
-      setStats(data)
+      setError(null);
+      const { data } = await api.get("/api/metrics/overview");
+      setOverview(data);
     } catch (err: any) {
-      if (err.response?.status === 401) { router.push("/login"); return }
-      setError(err.message || "加载失败")
+      if (err.response?.status === 401) {
+        router.push("/login");
+        return;
+      }
+      setError(err.message || "加载失败");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [router])
+  }, [router]);
 
   useEffect(() => {
-    fetchStats()
-  }, [fetchStats])
+    fetchOverview();
+  }, [fetchOverview]);
 
-  const runAnalysis = async () => {
-    setAnalyzing(true)
-    try {
-      const { data } = await api.post("/api/analyze")
-      alert(`分析完成: 成功 ${data.analyzed} 条, 失败 ${data.failed} 条`)
-      await fetchStats()
-    } catch (err: any) {
-      alert("分析失败: " + (err.response?.data?.detail || err.message))
-    } finally {
-      setAnalyzing(false)
-    }
-  }
-
-  if (loading) return <DashboardSkeleton />
+  if (loading) return <DashboardSkeleton />;
 
   if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="card text-center max-w-md">
-          <p className="text-red-400 mb-4">❌ {error}</p>
-          <button className="btn-primary" onClick={fetchStats}>重试</button>
-        </div>
-      </div>
-    )
-  }
-
-  const dist = stats?.sentiment_distribution
-  const positiveRate = stats?.analyzed_count ? Math.round(((dist?.positive || 0) / stats.analyzed_count) * 100) : 0
-  const negativeRate = stats?.analyzed_count ? Math.round(((dist?.negative || 0) / stats.analyzed_count) * 100) : 0
-
-  return (
-    <div className="max-w-7xl mx-auto px-6 pt-24 pb-12">
-      {/* 操作栏 */}
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold text-white">📊 数据仪表盘</h1>
-        <button className="btn-ghost text-sm border border-[#1e1e2e]" onClick={fetchStats}>
-          🔄 刷新数据
-        </button>
-      </div>
-
-      {/* 数据卡片 */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <DataCard icon="📊" label="反馈总数" value={stats?.total_feedbacks || 0} />
-        <DataCard icon="✅" label="已分析" value={stats?.analyzed_count || 0} />
-        <DataCard icon="😊" label="积极占比" value={`${positiveRate}%`} />
-        <DataCard icon="😟" label="消极占比" value={`${negativeRate}%`} />
-      </div>
-
-      {/* 上传 + 分析 */}
-      <div className="grid md:grid-cols-2 gap-4 mb-6">
-        <FileUpload onSuccess={() => { fetchStats() }} />
-        <div className="card flex items-center justify-center">
-          <button className="btn-primary text-lg" onClick={runAnalysis} disabled={analyzing}>
-            {analyzing ? "🤖 分析中..." : "🤖 运行 AI 分析"}
+          <p className="text-red-400 mb-4">{error}</p>
+          <button className="btn-primary" onClick={fetchOverview}>
+            重试
           </button>
         </div>
       </div>
+    );
+  }
 
-      {/* 图表 */}
-      <div className="grid md:grid-cols-2 gap-6 mb-6">
-        <SentimentChart data={stats?.daily_trends || []} />
-        <TopicChart data={stats?.top_topics || []} />
+  const formatCurrency = (v: number) =>
+    `¥${v.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  return (
+    <div className="max-w-7xl mx-auto px-6 pt-24 pb-12">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-xl font-bold text-white">数据仪表盘</h1>
+        <button
+          className="btn-ghost text-sm border border-[#1e1e2e]"
+          onClick={fetchOverview}
+        >
+          刷新数据
+        </button>
       </div>
 
-      {/* 反馈列表 */}
-      <FeedbackTable />
+      {/* Stat Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+        <DataCard
+          icon="👥"
+          label="总用户数"
+          value={overview?.total_users?.toLocaleString() ?? "0"}
+        />
+        <DataCard
+          icon="📦"
+          label="总订单数"
+          value={overview?.total_orders?.toLocaleString() ?? "0"}
+        />
+        <DataCard
+          icon="💰"
+          label="总收入"
+          value={formatCurrency(overview?.total_revenue ?? 0)}
+        />
+        <DataCard
+          icon="📊"
+          label="平均客单价"
+          value={formatCurrency(overview?.avg_order_value ?? 0)}
+        />
+        <DataCard
+          icon="🔥"
+          label="活跃用户(30天)"
+          value={overview?.active_users_30d?.toLocaleString() ?? "0"}
+        />
+      </div>
+
+      {/* Filter Bar */}
+      <div className="mb-6">
+        <FilterBar filters={filters} onChange={setFilters} />
+      </div>
+
+      {/* Charts Row 1: Revenue + User Segmentation */}
+      <div className="grid md:grid-cols-2 gap-6 mb-6">
+        <RevenueChart />
+        <UserSegmentationChart />
+      </div>
+
+      {/* Charts Row 2: Retention + Churn */}
+      <div className="grid md:grid-cols-2 gap-6 mb-6">
+        <RetentionChart />
+        <ChurnChart />
+      </div>
+
+      {/* AI Insights */}
+      <div className="mb-6">
+        <AIInsightPanel />
+      </div>
+
+      {/* Orders Table */}
+      <OrdersTable />
     </div>
-  )
+  );
 }

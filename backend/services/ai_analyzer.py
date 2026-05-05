@@ -91,3 +91,83 @@ def analyze_feedback(content: str, max_retries: int = 2) -> dict:
 def batch_analyze(feedbacks: list[str]) -> list[dict]:
     """批量分析"""
     return [analyze_feedback(c) for c in feedbacks]
+
+
+def analyze_user_decisions(user_id: int, db) -> dict:
+    """为单个用户生成 AI 决策并保存到数据库
+
+    Args:
+        user_id: 用户 ID
+        db: SQLAlchemy Session
+
+    Returns:
+        决策结果字典
+    """
+    from models import User, UserProfile, Order, Feedback, Analytics, Decision
+    from services.decision_engine import generate_decision
+    from sqlalchemy import func
+
+    # 获取用户画像
+    profile = db.query(UserProfile).filter(UserProfile.user_id == user_id).first()
+    if not profile:
+        return {"error": "用户画像不存在，请先运行 RFM 分析"}
+
+    # 获取近期订单（最近 20 条）
+    recent_orders = (
+        db.query(Order)
+        .filter(Order.user_id == user_id)
+        .order_by(Order.created_at.desc())
+        .limit(20)
+        .all()
+    )
+
+    # 构建反馈摘要
+    feedbacks = (
+        db.query(Feedback, Analytics)
+        .outerjoin(Analytics, Analytics.feedback_id == Feedback.id)
+        .filter(Feedback.user_id == user_id)
+        .order_by(Feedback.created_at.desc())
+        .limit(50)
+        .all()
+    )
+
+    # 统计情感分布和主题
+    sentiment_counts = {"positive": 0, "neutral": 0, "negative": 0}
+    top_topics = []
+    for fb, analytics in feedbacks:
+        if analytics:
+            sentiment_counts[analytics.sentiment] = sentiment_counts.get(analytics.sentiment, 0) + 1
+            if analytics.topics:
+                top_topics.extend(analytics.topics)
+
+    from collections import Counter
+    topic_counter = Counter(top_topics)
+    common_topics = [t for t, _ in topic_counter.most_common(5)]
+
+    feedback_summary = (
+        f"共 {len(feedbacks)} 条反馈，"
+        f"情感分布: 正面{sentiment_counts['positive']}中性{sentiment_counts['neutral']}负面{sentiment_counts['negative']}，"
+        f"主要话题: {', '.join(common_topics) if common_topics else '无'}"
+    )
+
+    # 调用决策引擎
+    decision = generate_decision(profile, recent_orders, feedback_summary)
+
+    # 保存到数据库
+    db_decision = Decision(
+        user_id=user_id,
+        user_type=decision.get("user_type", "potential"),
+        churn_risk=decision.get("churn_risk", "medium"),
+        recommended_action=decision.get("recommended_action", ""),
+        reasoning=decision.get("reasoning", ""),
+        rule_based=1 if decision.get("rule_based") else 0,
+    )
+    db.add(db_decision)
+    db.commit()
+    db.refresh(db_decision)
+
+    return {
+        "decision_id": db_decision.id,
+        "user_id": user_id,
+        **decision,
+    }

@@ -1,0 +1,11 @@
+.git
+.env
+.env.local
+__pycache__
+*.pyc
+.pytest_cache
+tests/
+alembic/
+*.db
+node_modules/
+frontend/

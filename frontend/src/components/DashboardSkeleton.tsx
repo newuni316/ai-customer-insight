@@ -42,12 +42,33 @@ export function TableSkeleton() {
 export default function DashboardSkeleton() {
   return (
     <div className="max-w-7xl mx-auto px-6 pt-24 pb-12">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        {[1, 2, 3, 4].map((i) => <CardSkeleton key={i} />)}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+        {[1, 2, 3, 4, 5].map((i) => <CardSkeleton key={i} />)}
+      </div>
+      <div className="card mb-6 animate-pulse">
+        <div className="flex gap-4">
+          <div className="w-24 h-8 bg-gray-700 rounded" />
+          <div className="w-24 h-8 bg-gray-700 rounded" />
+          <div className="w-24 h-8 bg-gray-700 rounded" />
+          <div className="flex-1" />
+          <div className="w-16 h-8 bg-gray-700 rounded" />
+        </div>
       </div>
       <div className="grid md:grid-cols-2 gap-6 mb-6">
         <ChartSkeleton />
         <ChartSkeleton />
+      </div>
+      <div className="grid md:grid-cols-2 gap-6 mb-6">
+        <ChartSkeleton />
+        <ChartSkeleton />
+      </div>
+      <div className="card mb-6 animate-pulse">
+        <div className="w-16 h-5 bg-gray-700 rounded mb-4" />
+        <div className="flex gap-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="min-w-[220px] h-20 rounded-lg bg-gray-800/50" />
+          ))}
+        </div>
       </div>
       <TableSkeleton />
     </div>
