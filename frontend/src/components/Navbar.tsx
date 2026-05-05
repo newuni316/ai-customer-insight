@@ -2,24 +2,22 @@
 import Link from "next/link"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import api from "@/lib/api"
 
 export default function Navbar() {
   const router = useRouter()
   const [email, setEmail] = useState<string | null>(null)
 
   useEffect(() => {
-    const token = localStorage.getItem("token")
-    if (token) {
-      // 简单解析 JWT payload 获取用户信息
-      try {
-        const payload = JSON.parse(atob(token.split(".")[1]))
-        setEmail(payload.email || "用户")
-      } catch { setEmail("用户") }
-    }
+    // 通过后端接口获取用户信息（而非客户端解析 JWT）
+    api.get("/api/auth/me")
+      .then(({ data }) => setEmail(data.email))
+      .catch(() => setEmail(null))
   }, [])
 
-  const logout = () => {
-    localStorage.removeItem("token")
+  const logout = async () => {
+    await api.delete("/api/auth/token") // 清除 httpOnly cookie
+    setEmail(null)
     router.push("/")
   }
 

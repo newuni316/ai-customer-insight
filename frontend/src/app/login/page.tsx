@@ -16,8 +16,10 @@ export default function LoginPage() {
     setError("")
     setLoading(true)
     try {
+      // 1. 获取 JWT
       const { data } = await api.post("/api/auth/login", { email, password })
-      localStorage.setItem("token", data.access_token)
+      // 2. 存入 httpOnly cookie（而非 localStorage）
+      await api.post("/api/auth/token", { token: data.access_token })
       router.push("/dashboard")
     } catch (err: any) {
       setError(err.response?.data?.detail || "登录失败")
