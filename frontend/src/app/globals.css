@@ -32,3 +32,30 @@ body {
 .input {
   @apply w-full bg-[#13131a] border border-[#1e1e2e] rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-primary-500 transition-colors;
 }
+
+/* ── Hero animated gradient background ── */
+.hero-gradient {
+  background: linear-gradient(-45deg, #7c3aed22, #06b6d422, #7c3aed11, #22d3ee11);
+  background-size: 400% 400%;
+  animation: gradient-shift 12s ease infinite;
+}
+@keyframes gradient-shift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* ── Hero dot grid ── */
+.hero-dots {
+  background-image: radial-gradient(circle, #8b5cf618 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+/* ── Gradient text shimmer ── */
+@keyframes gradient-x {
+  0%   { background-position: 0% center; }
+  100% { background-position: 200% center; }
+}
+.animate-gradient-x {
+  animation: gradient-x 4s linear infinite;
+}

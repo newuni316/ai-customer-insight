@@ -21,6 +21,20 @@ interface Overview {
   active_users_30d: number;
 }
 
+interface User {
+  email: string;
+  username?: string;
+}
+
+// Mock trend data — replace with real API when historical metrics are available
+const MOCK_TRENDS = {
+  total_users: { value: 12.5, up: true },
+  total_orders: { value: 8.3, up: true },
+  total_revenue: { value: 3.2, up: false },
+  avg_order_value: { value: 5.7, up: true },
+  active_users_30d: { value: 15.1, up: true },
+};
+
 const DEFAULT_FILTERS: FilterState = {
   startDate: "",
   endDate: "",
@@ -32,6 +46,7 @@ const DEFAULT_FILTERS: FilterState = {
 export default function DashboardPage() {
   const router = useRouter();
   const [overview, setOverview] = useState<Overview | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
@@ -52,9 +67,19 @@ export default function DashboardPage() {
     }
   }, [router]);
 
+  const fetchUser = useCallback(async () => {
+    try {
+      const { data } = await api.get("/api/auth/me");
+      setUser(data);
+    } catch {
+      // Non-critical — silently ignore
+    }
+  }, []);
+
   useEffect(() => {
     fetchOverview();
-  }, [fetchOverview]);
+    fetchUser();
+  }, [fetchOverview, fetchUser]);
 
   if (loading) return <DashboardSkeleton />;
 
@@ -76,43 +101,75 @@ export default function DashboardPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-6 pt-24 pb-12">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold text-white">数据仪表盘</h1>
-        <button
-          className="btn-ghost text-sm border border-[#1e1e2e]"
-          onClick={fetchOverview}
-        >
-          刷新数据
-        </button>
+      {/* Welcome Banner */}
+      <div className="card bg-gradient-to-r from-indigo-600/20 to-purple-600/20 border-indigo-500/30 mb-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-white mb-1">
+              欢迎回来{user?.email ? `，${user.email}` : ""}
+            </h1>
+            <p className="text-gray-400 text-sm">
+              这是您的客户洞察仪表盘，以下是最新数据概览。
+            </p>
+          </div>
+          <button
+            className="btn-ghost text-sm border border-[#1e1e2e]"
+            onClick={fetchOverview}
+          >
+            刷新数据
+          </button>
+        </div>
       </div>
 
-      {/* Stat Cards */}
+      {/* Quick Actions */}
+      <div className="flex flex-wrap gap-3 mb-6">
+        {[
+          { label: "上传 CSV", icon: "📄", href: "#" },
+          { label: "查看分析", icon: "📊", href: "#" },
+          { label: "导出报告", icon: "📥", href: "#" },
+        ].map((action) => (
+          <a
+            key={action.label}
+            href={action.href}
+            className="btn-ghost text-sm border border-[#1e1e2e] flex items-center gap-2 hover:border-indigo-500/50 hover:bg-indigo-500/5 transition-colors"
+          >
+            <span>{action.icon}</span>
+            {action.label}
+          </a>
+        ))}
+      </div>
+
+      {/* Stat Cards with Trends */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
         <DataCard
           icon="👥"
           label="总用户数"
           value={overview?.total_users?.toLocaleString() ?? "0"}
+          trend={MOCK_TRENDS.total_users}
         />
         <DataCard
           icon="📦"
           label="总订单数"
           value={overview?.total_orders?.toLocaleString() ?? "0"}
+          trend={MOCK_TRENDS.total_orders}
         />
         <DataCard
           icon="💰"
           label="总收入"
           value={formatCurrency(overview?.total_revenue ?? 0)}
+          trend={MOCK_TRENDS.total_revenue}
         />
         <DataCard
           icon="📊"
           label="平均客单价"
           value={formatCurrency(overview?.avg_order_value ?? 0)}
+          trend={MOCK_TRENDS.avg_order_value}
         />
         <DataCard
           icon="🔥"
           label="活跃用户(30天)"
           value={overview?.active_users_30d?.toLocaleString() ?? "0"}
+          trend={MOCK_TRENDS.active_users_30d}
         />
       </div>
 
@@ -123,23 +180,51 @@ export default function DashboardPage() {
 
       {/* Charts Row 1: Revenue + User Segmentation */}
       <div className="grid md:grid-cols-2 gap-6 mb-6">
-        <RevenueChart />
-        <UserSegmentationChart />
+        <div>
+          <h2 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+            <span className="text-indigo-400">📈</span> 收入趋势
+          </h2>
+          <RevenueChart />
+        </div>
+        <div>
+          <h2 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+            <span className="text-purple-400">🎯</span> 用户分层
+          </h2>
+          <UserSegmentationChart />
+        </div>
       </div>
 
       {/* Charts Row 2: Retention + Churn */}
       <div className="grid md:grid-cols-2 gap-6 mb-6">
-        <RetentionChart />
-        <ChurnChart />
+        <div>
+          <h2 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+            <span className="text-green-400">🔄</span> 留存分析
+          </h2>
+          <RetentionChart />
+        </div>
+        <div>
+          <h2 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+            <span className="text-red-400">⚠️</span> 流失风险
+          </h2>
+          <ChurnChart />
+        </div>
       </div>
 
       {/* AI Insights */}
       <div className="mb-6">
+        <h2 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+          <span className="text-yellow-400">🤖</span> AI 洞察
+        </h2>
         <AIInsightPanel />
       </div>
 
       {/* Orders Table */}
-      <OrdersTable />
+      <div>
+        <h2 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+          <span className="text-cyan-400">📋</span> 最近订单
+        </h2>
+        <OrdersTable />
+      </div>
     </div>
   );
 }
