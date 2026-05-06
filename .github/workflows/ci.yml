@@ -25,7 +25,11 @@ jobs:
       - name: Run tests
         env:
           TESTING: "1"
-        run: cd backend && python -m pytest tests/ -v
+        run: |
+          cd backend
+          find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+          rm -rf .pytest_cache
+          python -m pytest tests/ -v --cache-clear
 
   frontend-test:
     runs-on: ubuntu-latest
