@@ -56,7 +56,7 @@ def test_rule_rfm_vip():
 
 def test_rule_rfm_above_avg():
     """RFM 均分 >= 3.5 且默认 potential → loyal"""
-    profile = {"last_active_days": 5, "total_spent": 500.0, "purchase_frequency": 1.0, "rfm_score": "433"}
+    profile = {"last_active_days": 5, "total_spent": 500.0, "purchase_frequency": 1.0, "rfm_score": "443"}
     result = rule_based_classify(profile)
     assert result["user_type"] == "loyal"
     assert "rfm_above_avg" in result["rules_fired"]
@@ -143,7 +143,7 @@ def test_validate_case_insensitive():
 # --- generate_decision (mocked LLM) ---
 
 @patch.dict("os.environ", {"USE_LOCAL_MODEL": "false"})
-@patch("services.decision_engine.OpenAI")
+@patch("openai.OpenAI")
 def test_generate_decision_ai_success(mock_openai_cls):
     """AI 调用成功时返回 AI 决策"""
     mock_client = MagicMock()
@@ -165,7 +165,7 @@ def test_generate_decision_ai_success(mock_openai_cls):
 
 
 @patch.dict("os.environ", {"USE_LOCAL_MODEL": "false"})
-@patch("services.decision_engine.OpenAI")
+@patch("openai.OpenAI")
 def test_generate_decision_ai_fails_fallback(mock_openai_cls):
     """AI 调用失败时回退到规则结果"""
     mock_client = MagicMock()
@@ -189,7 +189,7 @@ def test_generate_decision_local_model_uses_rules():
 
 
 @patch.dict("os.environ", {"USE_LOCAL_MODEL": "false"})
-@patch("services.decision_engine.OpenAI")
+@patch("openai.OpenAI")
 def test_generate_decision_retry_mechanism(mock_openai_cls):
     """重试机制：2次失败后第3次成功"""
     mock_client = MagicMock()
@@ -218,7 +218,7 @@ def test_generate_decision_retry_mechanism(mock_openai_cls):
 
 
 @patch.dict("os.environ", {"USE_LOCAL_MODEL": "false"})
-@patch("services.decision_engine.OpenAI")
+@patch("openai.OpenAI")
 def test_generate_decision_invalid_ai_output_validated(mock_openai_cls):
     """AI 返回无效字段时被归一化"""
     mock_client = MagicMock()

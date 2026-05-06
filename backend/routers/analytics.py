@@ -79,7 +79,12 @@ def run_analysis(
     success = fail = 0
     failures = []
     for fb in unanalyzed:
-        result = analyze_feedback(fb.content)
+        try:
+            result = analyze_feedback(fb.content)
+        except Exception as e:
+            fail += 1
+            failures.append({"id": fb.id, "error": str(e)})
+            continue
         if result.get("error"):
             fail += 1
             failures.append({"id": fb.id, "error": result["error"]})

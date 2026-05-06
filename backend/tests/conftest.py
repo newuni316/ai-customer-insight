@@ -46,7 +46,7 @@ def client(db):
 @pytest.fixture
 def auth_headers(client):
     """注册用户并返回认证 headers"""
-    client.post("/api/auth/register", json={"email": "test@example.com", "password": "test123"})
-    resp = client.post("/api/auth/login", json={"email": "test@example.com", "password": "test123"})
+    client.post("/api/auth/register", json={"email": "test@example.com", "password": "test1234"})
+    resp = client.post("/api/auth/login", json={"email": "test@example.com", "password": "test1234"})
     token = resp.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}

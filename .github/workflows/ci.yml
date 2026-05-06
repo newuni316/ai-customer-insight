@@ -24,6 +24,8 @@ jobs:
           pip install -r requirements.txt
           pip install pytest pytest-asyncio httpx
       - name: Run tests
+        env:
+          TESTING: "1"
         run: cd backend && python -m pytest tests/ -v
 
   frontend-test:

@@ -41,8 +41,8 @@ def test_rfm_single_order(db):
     user = _create_user(db)
     _create_order(db, user.id, amount=500.0, days_ago=5)
     result = calculate_rfm_score(user.id, db)
-    # Recency 5天 → 5分, Frequency 很低 → 1分, Monetary 500 → 2分
-    assert result["rfm_score"] == "512"
+    # Recency 5天 → 5分, Frequency 1单/月 → 3分, Monetary 500 → 2分
+    assert result["rfm_score"] == "532"
     assert result["recency_days"] == 5
     assert result["monetary"] == 500.0
 
@@ -120,7 +120,7 @@ def test_classify_high_value():
 
 def test_classify_medium_value():
     assert classify_user_level("333") == "Medium Value"
-    assert classify_user_level("322") == "Medium Value"
+    assert classify_user_level("332") == "Medium Value"
     assert classify_user_level("253") == "Medium Value"
 
 

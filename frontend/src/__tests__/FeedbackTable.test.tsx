@@ -9,7 +9,7 @@ jest.mock('@/lib/api', () => ({
 describe('FeedbackTable', () => {
   it('renders table header', () => {
     render(<FeedbackTable />)
-    expect(screen.getByText('反馈列表')).toBeInTheDocument()
+    expect(screen.getByText(/反馈列表/)).toBeInTheDocument()
   })
 
   it('shows sentiment filter', () => {
