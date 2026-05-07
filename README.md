@@ -8,14 +8,6 @@
 
 > AI 驱动的客户洞察与决策平台 — 全栈开发 + RFM 用户分层 + AI 混合决策引擎
 
-## Screenshots
-
-<!-- TODO: Add screenshots -->
-
-| Dashboard | User Segmentation | AI Insights |
-|-----------|-------------------|-------------|
-| ![Dashboard](docs/screenshots/dashboard.png) | ![Segmentation](docs/screenshots/segmentation.png) | ![Insights](docs/screenshots/insights.png) |
-
 ## Architecture
 
 ```
